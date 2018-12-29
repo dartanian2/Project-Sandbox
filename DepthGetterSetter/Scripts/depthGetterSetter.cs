@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Windows.Kinect;
@@ -6,13 +6,15 @@ using System;
 
 public class depthGetterSetter : MonoBehaviour
 {
-
+    /*
+    //don't think this is needed
     public enum DisplayFrameType
     {
         Infrared,
         Color,
         Depth
     }
+    */
 
     //unity variables
     private const int width = 512;
@@ -22,27 +24,26 @@ public class depthGetterSetter : MonoBehaviour
     //private int foo = 0;
     //private float[,] tempMap = null;
     
-    //instansiate TerrainGenerator
+    //declare TerrainGenerator
     private TerrainGenerator terrainGenerator;
 
-    //create variable to handle the actual sensor hardware
+    //declare object reference to handle the actual sensor hardware
     private KinectSensor kinectSensor = null;
 
-    //depth Frame variables
+    //declare depth Frame object references
     private MultiSourceFrameReader frameReader = null;
     private ushort[] depthFrameData = null;
 
 
-    // Use this for initialization
+    //Use this for initialization
     void Start()
     {
         terrainGenerator = GetComponent<TerrainGenerator>();
 
-        //gives variable kinectSensor the actual hardware
+        //instantiate kinectSensor
         this.kinectSensor = KinectSensor.GetDefault();
 
-        //Setup depth data stuff for incoming frames
-        //Depth frame source
+        //Depth frame description
         FrameDescription depthFrameDescription =
             this.kinectSensor.DepthFrameSource.FrameDescription;
 
@@ -50,7 +51,7 @@ public class depthGetterSetter : MonoBehaviour
         this.frameReader = this.kinectSensor.OpenMultiSourceFrameReader
             (FrameSourceTypes.Depth | FrameSourceTypes.Color);
 
-        //open reader for multi source frames
+        //subscribe event to event handler
         this.frameReader.MultiSourceFrameArrived +=
             this.Reader_MultiSourceFrameArrived;
 
@@ -81,17 +82,18 @@ public class depthGetterSetter : MonoBehaviour
                 //depthFrameData(y*frameHeight + x)
                 depthFrame.CopyFrameDataToArray(depthFrameData);
 
-
+                //Debug.Log(depthFrameData[212]);
                 //to prevent frames being rendered whilst people are moving sand around, find the sum of the heights,
                 //and if it is greater than the highest possible collective height of all the sand there is obviously something else in the way?
-                
+
                 for (int x = 0; x < width; x++)
                 {
                     for (int y = 0; y < height; y++)
                     {
-                        depthMap[x, y] = (float)depthFrameData[x + y * depthFrameDescription.Height];
+                        depthMap[x, y] = depthFrameData[x + y * depthFrameDescription.Height];
                     }
                 }
+                //Debug.Log(depthMap[212, 212]);
 
                 /*
                 int count = 0;
@@ -114,6 +116,7 @@ public class depthGetterSetter : MonoBehaviour
                 //[2][5][8]
 
                 terrainGenerator.UpdateTerrain(depthMap, width, height);
+                
 
                 //combining frames makes no difference to accuracy that I can tell
                 //I dont think tempMap is even saved, is it altering the global value? Same with foo
