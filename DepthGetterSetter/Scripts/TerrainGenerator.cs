@@ -7,7 +7,7 @@ public class TerrainGenerator : MonoBehaviour
 
     //private float divisor = 3725f;
     /// <summary>
-    /// Max value depth should be, is equivalent to 0 because inversion, is used to scale
+    /// Max value depth should be, is equivalent to 0 because inversion, is used to scale.
     /// </summary>
     private const float MaxDistance = 2000f;
 
