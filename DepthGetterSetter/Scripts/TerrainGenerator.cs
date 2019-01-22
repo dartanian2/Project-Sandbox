@@ -1,31 +1,67 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.IO;
+using System;
 
 public class TerrainGenerator : MonoBehaviour
 {
-    
-    //private float divisor = 3725f;
-    private const float divisor = 1000f;
-    private const int depth = 100;
+    /// <summary>
+    /// Max value depth should be, this value minus MinDistance is equivalent to 0 because inversion, is used to scale
+    /// </summary>
+    private const float MaxDistance = 3000f;
+
+    /// <summary>
+    /// Min value depth should be, is equivalent to 1f because inversion
+    /// </summary>
+    private const float MinDistance = 500f;
+
+    /// <summary>
+    /// Max value terrain mesh can be
+    /// </summary>
+    private const int depth = 600;
+
     //3725f is max value that you want to measure
     //official max is 4500f but I dont think so
+    //private float divisor = 3725f;
 
+    /// <summary>
+    /// Checks if frame depths have been saved
+    /// </summary>
+    private bool hasSaved = true;
 
+    /// <summary>
+    /// Configures and sets heights of terrain according to depth values
+    /// </summary>
     public void UpdateTerrain(float[,] depthMap, int width, int height)
     {
-        //updates as every third kinect frame comes in
         Terrain terrain = GetComponent<Terrain>();
         TerrainData tD = terrain.terrainData;
         tD.heightmapResolution = width + 1;
         tD.size = new Vector3(width, depth, height);
-        Debug.Log("Actual Value: "+depthMap[211, 255]);
 
-        //depthMap = Divide(depthMap, width, height);
+        Debug.Log("Actual Value: " + depthMap[211, 255]);
+
         depthMap = Clean(depthMap, width, height);
-        Debug.Log("Multiplier: "+depthMap[211, 255]);
+        Debug.Log("Multiplier: " + depthMap[211, 255]);
         tD.SetHeights(0, 0, depthMap);
-        //Debug.Log(depthMap[212, 212]);
+
+        //Saves frame if not saved already
+        if (hasSaved)
+        {
+            string depths = "";
+            for (int x = 0; x < 5; x++)
+            {
+                for (int y = 0; y < 20; y++)
+                {
+                    depths += "_*_" + (depthMap[x,y]);
+                }
+                depths += Environment.NewLine;
+            }
+
+            SaveFile(depths);
+            hasSaved = false;
+        }
     }
 
     /*
@@ -48,61 +84,75 @@ public class TerrainGenerator : MonoBehaviour
     }
     */
 
-    //depthMapTxt += depthMap[x, y].ToString();
-    //System.IO.File.WriteAllText(@"C: \Users\Theo Levison\Desktop\Desktop\Computing\ProjectSandbox\depthMap.txt", depthMapTxt);
+    //if depth is zero, it should be ignored, so copy neighbour?
 
-    private float[,] Divide(float[,] depthMap, int width, int height)
+    /// <summary>
+    /// Gets float value, minus MinDistance, divides by MaxDistance, scales and rounds to 2sf, inverts, averages with neighbours
+    /// </summary>
+    private float[,] Clean(float[,] depthMap, int width, int height)
     {
-        //should height and width be switched around? I think so but it breaks when that is done?! And no error is returned
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
-                depthMap[x, y] = depthMap[x, y] / divisor;
-            }
-        }
-        return depthMap;
-    }
-
-    private float[,] Clean(float[,] depthMap, int width, int height)
-    {
-        for (int x=0; x < width; x++)
-        {
-            for (int y=0; y < height; y++)
-            {
-                if (depthMap[x, y] > divisor || depthMap[x, y] == 0)
+                if (depthMap[x, y] > MaxDistance || depthMap[x, y] == 0)
                 {
-                    depthMap[x, y] = 0f;
-                    depthMap = Compare4x(depthMap, x, y);
+                    //Erroneous, ignore or copy adjacent
+
+                    //Copy
+                    if (x > 0)
+                    {
+                        depthMap[x, y] = depthMap[x - 1, y];
+                    } else
+                    {
+                        depthMap[x, y] = 0f;
+                    }
+
+                    //Average values with neighbours
+                    //depthMap = Compare4x(depthMap, x, y);
                     //depthMap = Compare9x(depthMap, x, y);
                 }
-                else if (depthMap[x, y] < 500f && depthMap[x, y] != 0)
+                else if (depthMap[x, y] < MinDistance && depthMap[x, y] != 0)
                 {
+                    //Erroneous, ignore or copy adjacent
                     depthMap[x, y] = 1f;
-                    depthMap = Compare4x(depthMap, x, y);
+
+                    //Average values with neighbours
+                    //depthMap = Compare4x(depthMap, x, y);
                     //depthMap = Compare9x(depthMap, x, y);
                 }
                 else
                 {
-                    depthMap[x, y] = (divisor - (depthMap[x, y] - 500f)) / divisor;
-                    depthMap = Compare4x(depthMap, x, y);
-                    //depthMap = Compare9x(depthMap, x, y);
+                    //Move value "closer" to the camera, then divide by altered scale value
+                    float preRounding = (depthMap[x, y] - MinDistance) / (MaxDistance - MinDistance);
+
+                    //Round float to 2 sf, then invert
+                    depthMap[x, y] = 1f - (Mathf.Round(preRounding * 100f) / 100f);
+
+                    //Average values with neighbours
+                    //depthMap = Compare4x(depthMap, x, y);
+                    depthMap = Compare9x(depthMap, x, y);
                 }
             }
         }
         return depthMap;
     }
 
-    //Averageing functions
+    //Averageing functions:
     //Has to point up left so that we are not comparing to values that have not been processed yet (Any value right or down of pointer has not been processed yet)
 
     //Should try to assign lower weight to values further away from pointer, make new function to do this
-    //can we do all of this with a for loop? Yes lol
+    //Use terrainData.GetSteepness to get rid of stupidly steep values?? (I have tried this and failed, still seems suitable however, try again?)
 
-    //Use terrainData.GetSteepness to get rid of stupidly steep values??
-    
+
+    //Shouldn't all (heightIndex + 1) be (heightIndex - 1) ??
+
+    /// <summary>
+    /// Smaller box blur filter
+    /// </summary>
     private float[,] Compare4x(float[,] depthMap, int widthIndex, int heightIndex)
     {
+        //ensures values on the edge are not compared, avoids accessing outside of array range
         if (widthIndex > 0 && heightIndex > 0)
         {
             //compare block of four pointing top left from indexed cell
@@ -130,9 +180,13 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    //Does not work, why is this???
+    //Does not work, why is this? (Is it because "heightIndex + 1" should be "heightIndex - 1"?)
+    /// <summary>
+    /// Box blur filter
+    /// </summary>
     private float[,] Compare9x(float[,] depthMap, int widthIndex, int heightIndex)
     {
+        //ensures values on the edge are not compared, avoids accessing outside of array range
         if (widthIndex > 1 && heightIndex > 1)
         {
             //compare block of nine pointing top left from indexed cell
@@ -144,9 +198,9 @@ public class TerrainGenerator : MonoBehaviour
             float one = depthMap[widthIndex - 2, heightIndex - 2];
             float two = depthMap[widthIndex - 1, heightIndex - 2];
             float three = depthMap[widthIndex, heightIndex - 2];
-            float four = depthMap[widthIndex - 2, heightIndex + 1];
-            float five = depthMap[widthIndex - 1, heightIndex + 1];
-            float six = depthMap[widthIndex, heightIndex + 1];
+            float four = depthMap[widthIndex - 2, heightIndex - 1];
+            float five = depthMap[widthIndex - 1, heightIndex - 1];
+            float six = depthMap[widthIndex, heightIndex - 1];
             float seven = depthMap[widthIndex - 2, heightIndex];
             float eight = depthMap[widthIndex - 1, heightIndex];
             float x = depthMap[widthIndex, heightIndex];
@@ -157,9 +211,9 @@ public class TerrainGenerator : MonoBehaviour
             depthMap[widthIndex - 2, heightIndex - 2] = ave;
             depthMap[widthIndex - 1, heightIndex - 2] = ave;
             depthMap[widthIndex, heightIndex - 2] = ave;
-            depthMap[widthIndex - 2, heightIndex + 1] = ave;
-            depthMap[widthIndex - 1, heightIndex + 1] = ave;
-            depthMap[widthIndex, heightIndex + 1] = ave;
+            depthMap[widthIndex - 2, heightIndex - 1] = ave;
+            depthMap[widthIndex - 1, heightIndex - 1] = ave;
+            depthMap[widthIndex, heightIndex - 1] = ave;
             depthMap[widthIndex - 2, heightIndex] = ave;
             depthMap[widthIndex - 1, heightIndex] = ave;
             depthMap[widthIndex, heightIndex] = ave;
@@ -172,33 +226,17 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    /*
-    private float[,] Clean(float[,] depthMap, int width, int height)
+    /// <summary>
+    /// Saves cleaned frame depth values into Desktop/saveCleaned.txt
+    /// </summary>
+    private void SaveFile(string depths)
     {
-        for (int x = 1; x < width; x+=2)
+        string destination = "C:/Users/Theo Levison/Desktop/saveCleaned.txt";
+
+        using (StreamWriter streamWriter = File.CreateText(destination))
         {
-            for (int y = 1; y < height; y+=2)
-            {
-                float averageValue = 0;
-                for (int i = -1; i < 2; i++)
-                {
-                    for (int k = -1; k < 2; k++)
-                    {
-                        averageValue += depthMap[x + i, y + i];
-                    }
-                }
-                averageValue = averageValue / 9 / divisor;
-                Debug.Log(averageValue);
-                for (int i = -1; i < 2; i++)
-                {
-                    for (int k = -1; k < 2; k++)
-                    {
-                        depthMap[x + i, y + i] = averageValue;
-                    }
-                }
-            }
+            streamWriter.Write(depths);
         }
-        return depthMap;
+        Debug.Log("save successful");
     }
-    */
 }
