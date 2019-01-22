@@ -19,7 +19,7 @@ public class TerrainGenerator : MonoBehaviour
     /// <summary>
     /// Max value terrain mesh can be
     /// </summary>
-    private const int depth = 600;
+    private const int depth = 300;
 
     //3725f is max value that you want to measure
     //official max is 4500f but I dont think so
@@ -31,19 +31,25 @@ public class TerrainGenerator : MonoBehaviour
     private bool hasSaved = true;
 
     /// <summary>
+    /// It's pretty obvious
+    /// </summary>
+    private TerrainPainting terrainPainter;
+
+    /// <summary>
     /// Configures and sets heights of terrain according to depth values
     /// </summary>
     public void UpdateTerrain(float[,] depthMap, int width, int height)
     {
+        terrainPainter = GetComponent<TerrainPainting>();
         Terrain terrain = GetComponent<Terrain>();
         TerrainData tD = terrain.terrainData;
         tD.heightmapResolution = width + 1;
         tD.size = new Vector3(width, depth, height);
 
-        Debug.Log("Actual Value: " + depthMap[211, 255]);
+        //Debug.Log("Actual Value: " + depthMap[211, 255]);
 
         depthMap = Clean(depthMap, width, height);
-        Debug.Log("Multiplier: " + depthMap[211, 255]);
+        //Debug.Log("Multiplier: " + depthMap[211, 255]);
         tD.SetHeights(0, 0, depthMap);
 
         //Saves frame if not saved already
@@ -62,6 +68,9 @@ public class TerrainGenerator : MonoBehaviour
             SaveFile(depths);
             hasSaved = false;
         }
+
+        //paint terrain
+        terrainPainter.UpdatePaint();
     }
 
     /*
